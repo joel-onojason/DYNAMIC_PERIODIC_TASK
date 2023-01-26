@@ -2,13 +2,18 @@ import json
 from datetime import datetime
 
 from django.utils import timezone
-from rest_framework import status, viewsets
-from rest_framework.response import Response
+from rest_framework import viewsets
 from rest_framework.permissions import AllowAny
 
 from schedule.models import Setup
-from schedule.serializer import SetupSerializer
+from schedule.serializer import SetupSerializer, ResetPasswordSerializer, CustomPasswordResetConfirmSerializer
 from django_celery_beat.models import PeriodicTask, CrontabSchedule, ClockedSchedule
+
+from dj_rest_auth.views import PasswordResetConfirmView
+from django.utils.translation import ugettext_lazy as _
+from rest_framework import status, generics
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 
 
 def validate_required_fields(fields: dict):
@@ -94,3 +99,51 @@ class SetupViewSet(viewsets.ModelViewSet):
         except Exception as e:
             setup.delete()
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResetPasswordView(generics.GenericAPIView):
+    """
+    Calls Django Auth PasswordResetForm save method.
+
+    Accepts the following POST parameters: email
+    Returns the success/fail message.
+    """
+    serializer_class = ResetPasswordSerializer
+    permission_classes = (AllowAny,)
+    throttle_scope = 'dj_rest_auth'
+
+    def post(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            # Return the success message with OK HTTP status:
+            return Response(
+                {"detail": _("Password reset e-mail has been sent.")},
+                status=status.HTTP_200_OK
+            )
+        # except ValidationError as e:
+        #     error = get_all_serializer_errors(e)
+        #     return Response(error, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": _(str(e))}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CustomPasswordResetConfirmView(PasswordResetConfirmView):
+    serializer_class = CustomPasswordResetConfirmSerializer
+
+    def post(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(
+                {'detail': _('Password has been reset with the new password.')},
+                status=status.HTTP_200_OK)
+
+        # except ValidationError as e:
+        #     error = get_all_serializer_errors(e)
+        #     return Response(error, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": _(str(e))}, status=status.HTTP_400_BAD_REQUEST)

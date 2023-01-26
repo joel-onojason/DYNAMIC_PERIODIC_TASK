@@ -8,7 +8,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'dynamic_task.settings')
 app = Celery('dynamic_task')
 app.config_from_object(settings, namespace='CELERY')
 app.autodiscover_tasks()
-app.conf.beat_max_loop_interval = 10
+# app.conf.beat_max_loop_interval = 10
 
 
 @app.task(bind=True)
